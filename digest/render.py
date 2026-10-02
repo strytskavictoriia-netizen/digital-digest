@@ -63,9 +63,13 @@ def sections(items: list[dict], rubrics: list[dict]) -> list[str]:
     """Новини за напрямами (порядок з config.yaml), головні — першими."""
     out = []
     for r in rubrics:
-        found = sorted((i for i in items if i["rubric"] == r["id"]), key=lambda i: -i.get("importance", 2))
+        found = sorted((i for i in items if i["rubric"] == r["id"] and i.get("importance") != 1),
+                       key=lambda i: -i.get("importance", 2))
         if found:
             out.append(f"{r['emoji']} <b>{e(r['title'].upper())}</b>\n\n" + "\n\n".join(item_line(i) for i in found))
+    watch = [i for i in items if i.get("importance") == 1]
+    if watch:
+        out.append("📡 <b>НА РАДАРІ</b>\n" + "\n".join(f"• {title_link(i)}" for i in watch))
     return out
 
 
@@ -110,25 +114,38 @@ def top_card(it: dict, cfg: dict) -> str:
     return text + (f"\n🔗 {links_html(it['links'])}" if it["links"] else "")
 
 
+def radar(items: list[dict]) -> list[dict]:
+    """importance 1 — «📡 На радарі»: зараз дії немає, але варто знати, якщо сфера зрушить."""
+    return [i for i in items if i.get("importance") == 1]
+
+
+def main_items(items: list[dict]) -> list[dict]:
+    return [i for i in items if i.get("importance") != 1]
+
+
 def top_items(items: list[dict], cfg: dict) -> list[dict]:
     """Головне для поста: спершу importance 3, далі решта — не більше format.top_count."""
-    ranked = sorted(items, key=lambda i: -i.get("importance", 2))
+    ranked = sorted(main_items(items), key=lambda i: -i.get("importance", 2))
     return ranked[: cfg["format"].get("top_count", 3)]
 
 
 def issue_message(header: str, d: dict, cfg: dict, extra: list[str] | None = None) -> list[str]:
     top = top_items(d["items"], cfg)
-    rest = [i for i in d["items"] if i not in top]
+    rest = [i for i in main_items(d["items"]) if i not in top]
+    watch = radar(d["items"])
 
     def build(cards: list[dict]) -> str:
         blocks = [header] + [top_card(i, cfg) for i in cards]
-        if rest:
-            counts = " · ".join(f"{r['emoji']} {e(r['title'])} ({n})" for r in cfg["rubrics"]
-                                if (n := sum(1 for i in rest if i["rubric"] == r["id"])))
+        if rest or watch:
+            counts = [f"{r['emoji']} {e(r['title'])} ({n})" for r in cfg["rubrics"]
+                      if (n := sum(1 for i in rest if i["rubric"] == r["id"]))]
+            if watch:
+                counts.append(f"📡 На радарі ({len(watch)})")
             if d.get("page"):
-                blocks.append(f"➕ <b>Ще у випуску:</b> {counts}")
+                blocks.append(f"➕ <b>Ще у випуску:</b> {' · '.join(counts)}")
             else:  # немає сторінки — даємо решту новин рядками з посиланнями на джерела
-                blocks.append("➕ <b>Ще у випуску</b>\n" + "\n".join(f"▪️ {title_link(i)}" for i in rest))
+                blocks.append("➕ <b>Ще у випуску</b>\n" + "\n".join(
+                    [f"▪️ {title_link(i)}" for i in rest] + [f"📡 {title_link(i)}" for i in watch]))
         blocks += (extra or []) + tail_blocks(d, cfg)
         if d.get("page"):
             blocks.append(f'📖 <a href="{escape(d["page"])}"><b>Повний випуск — усі новини, деталі й джерела</b></a>')
@@ -161,11 +178,15 @@ def item_markdown(it: dict) -> list[str]:
 def items_markdown(items: list[dict], cfg: dict) -> list[str]:
     lines = []
     for r in cfg["rubrics"]:
-        found = [i for i in items if i["rubric"] == r["id"]]
+        found = [i for i in main_items(items) if i["rubric"] == r["id"]]
         if found:
             lines += ["", f"## {r['emoji']} {r['title']}"]
             for it in found:
                 lines += item_markdown(it)
+    if radar(items):
+        lines += ["", "## 📡 На радарі"]
+        for it in radar(items):
+            lines += item_markdown(it)
     return lines
 
 

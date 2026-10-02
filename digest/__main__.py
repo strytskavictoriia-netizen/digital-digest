@@ -192,7 +192,7 @@ def item_schema(cfg: dict) -> dict:
     return obj({
         "rubric": {"type": "string", "enum": [r["id"] for r in cfg["rubrics"]]},
         "title": text, "summary": text, "teaser": text,
-        "importance": {"type": "integer", "enum": [2, 3]},
+        "importance": {"type": "integer", "enum": [1, 2, 3]},
         "details": text, "recommendations": str_array(), "source_ids": str_array(),
         "first_published": text,
         "verification": {"type": "string", "enum": ["confirmed", "single_source"]},

@@ -106,17 +106,27 @@ def publish_issue(token: str, title: str, result: dict, cfg: dict) -> str | None
     content = []
     if result.get("headline"):
         content.append({"tag": "p", "children": [{"tag": "em", "children": [result["headline"]]}]})
+    def add(it: dict) -> None:
+        warn = " ⚠️ одне джерело" if it.get("verification") == "single_source" else ""
+        content.append({"tag": "h4", "children": [("🔥 " if it.get("importance") == 3 else "") + it["title"] + warn]})
+        if it.get("summary"):
+            content.append({"tag": "p", "children": [{"tag": "strong", "children": [it["summary"]]}]})
+        content.extend(item_content(it, "")[1:])  # без мітки рубрики — вона вже в заголовку секції
+
     for r in cfg["rubrics"]:
-        found = sorted((i for i in result["items"] if i["rubric"] == r["id"]), key=lambda i: -i.get("importance", 2))
-        if not found:
-            continue
-        content.append({"tag": "h3", "children": [f"{r['emoji']} {r['title']}"]})
-        for it in found:
-            warn = " ⚠️ одне джерело" if it.get("verification") == "single_source" else ""
-            content.append({"tag": "h4", "children": [("🔥 " if it.get("importance") == 3 else "") + it["title"] + warn]})
-            if it.get("summary"):
-                content.append({"tag": "p", "children": [{"tag": "strong", "children": [it["summary"]]}]})
-            content += item_content(it, "")[1:]  # без мітки рубрики — вона вже в заголовку секції
+        found = sorted((i for i in result["items"] if i["rubric"] == r["id"] and i.get("importance") != 1),
+                       key=lambda i: -i.get("importance", 2))
+        if found:
+            content.append({"tag": "h3", "children": [f"{r['emoji']} {r['title']}"]})
+            for it in found:
+                add(it)
+    watch = [i for i in result["items"] if i.get("importance") == 1]
+    if watch:
+        content.append({"tag": "h3", "children": ["📡 На радарі"]})
+        content.append({"tag": "p", "children": [{"tag": "em", "children": [
+            "Зараз дії не потребує, але варто стежити: якщо тут щось зрушить, це стане новиною."]}]})
+        for it in watch:
+            add(it)
     if result.get("trends"):
         content.append({"tag": "h3", "children": ["📈 Тренди"]})
         content.append({"tag": "ul", "children": [{"tag": "li", "children": [t]} for t in result["trends"]]})
