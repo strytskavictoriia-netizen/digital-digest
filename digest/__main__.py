@@ -3,6 +3,7 @@
     python -m digest daily   [--dry-run] [--force]   щоденний випуск
     python -m digest weekly  [--dry-run] [--force]   тижневий підсумок
     python -m digest publish-preview                 опублікувати останній dry-run і записати в архів
+    python -m digest publish-preview --to-me         тестовий режим: випуск лише собі в бот, без архіву
 
     python -m digest sources                         перевірити всі джерела (без Claude і Telegram)
     python -m digest check-source <посилання>        визначити тип джерела і показати, що воно дає
@@ -479,15 +480,22 @@ def run_find_chat() -> None:
         print(f"{kind:10} {cid:>16}  {name}")
 
 
-def run_publish_preview() -> None:
+def run_publish_preview(to_me: bool = False) -> None:
     """Публікує в канал останній dry-run (out/daily-preview.json) і записує його в архів —
     усе, що побачили читачі, має бути в архіві, інакше наступний випуск це повторить.
-    Після цього архів треба відправити на GitHub (git push), щоб його бачив робочий запуск."""
+    Після цього архів треба відправити на GitHub (git push), щоб його бачив робочий запуск.
+    to_me=True — тестовий режим: випуск приходить лише власнику в бот «центр агентів», в архів не пишеться."""
     result = read_json(OUT / "daily-preview.json", None)
     if not result:
         sys.exit("Немає out/daily-preview.json — спершу запустіть: python -m digest daily --dry-run")
     cfg, day = load_config(), date.fromisoformat(result["date"])
     urls = result.pop("_urls", [])
+    if to_me:
+        telegraph_pages(result, cfg, day, f"{cfg['title']} · {render.human_date(day)}")
+        telegram.send_messages(env("HUB_BOT_TOKEN"), env("HUB_CHAT_ID"),
+                               ["🧪 <b>Тестовий випуск — бачиш лише ти</b>"] + render.daily_telegram(result, cfg, day))
+        print("Тестовий випуск надіслано тобі в бот «центр агентів» (у канал і архів нічого не пішло).")
+        return
     publish_daily(result, cfg, day)
     if daily_path(day).exists():  # за цей день уже є випуск — дописуємо тестові новини до нього
         old = read_json(daily_path(day), {})
@@ -536,6 +544,7 @@ def main() -> None:
     parser.add_argument("--name", help="назва джерела (для add-source)")
     parser.add_argument("--dry-run", action="store_true", help="згенерувати, але не публікувати (результат у out/)")
     parser.add_argument("--force", action="store_true", help="ігнорувати перевірки часу і повторів")
+    parser.add_argument("--to-me", action="store_true", help="publish-preview: надіслати лише собі в бот «центр агентів»")
     args = parser.parse_args()
     if args.command in ("check-source", "add-source") and not args.url:
         parser.error("потрібне посилання на джерело")
@@ -548,7 +557,7 @@ def main() -> None:
         "add-source": lambda: run_add_source(args.url, args.name),
         "find-chat": run_find_chat,
         "test-telegram": run_test_telegram,
-        "publish-preview": run_publish_preview,
+        "publish-preview": lambda: run_publish_preview(args.to_me),
         "telegraph-setup": run_telegraph_setup,
         "watchdog": run_watchdog,
     }
