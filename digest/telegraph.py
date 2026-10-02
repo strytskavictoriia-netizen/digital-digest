@@ -5,6 +5,7 @@
 - адреса сторінки випадкова: сторінка створюється з випадковим заголовком
   (з нього Telegraph робить адресу), а потім отримує справжній заголовок.
 """
+import json
 import logging
 import secrets
 import time
@@ -22,9 +23,20 @@ class TelegraphError(RuntimeError):
     pass
 
 
+PAGE_LIMIT = 60_000  # Telegraph приймає до 64 КБ вмісту на сторінку
+
+
+def _size(content: list) -> int:
+    # Telegraph міряє вміст у JSON з \uXXXX-екрануванням: кирилична літера «важить» 6 байтів
+    return len(json.dumps(content))
+
+
 def _call(method: str, payload: dict) -> dict:
+    # Кирилицю шлемо як UTF-8, а не \uXXXX — інакше текст утричі більший і впирається в ліміт сторінки
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     for _ in range(4):
-        data = requests.post(f"{API}/{method}", json=payload, timeout=30).json()
+        data = requests.post(f"{API}/{method}", data=body, timeout=30,
+                             headers={"Content-Type": "application/json; charset=utf-8"}).json()
         if data.get("ok"):
             return data["result"]
         error = str(data.get("error", ""))
@@ -62,13 +74,31 @@ def item_content(item: dict, label: str) -> list:
     return nodes
 
 
+def _placeholder(token: str) -> dict:
+    # Адресу Telegraph робить із заголовка — створюємо з випадковим, тож адресу не вгадати
+    return _call("createPage", {"access_token": token, "title": secrets.token_hex(8), "author_name": AUTHOR,
+                                "content": [{"tag": "p", "children": ["…"]}]})
+
+
 def create_page(token: str, title: str, content: list) -> str:
-    placeholder = secrets.token_hex(8)  # з нього Telegraph зробить адресу — її не вгадати
-    path = _call("createPage", {"access_token": token, "title": placeholder, "author_name": AUTHOR,
-                                "content": [{"tag": "p", "children": ["…"]}]})["path"]
-    page = _call(f"editPage/{path}", {"access_token": token, "title": title[:256],
-                                      "author_name": AUTHOR, "content": content})
-    return page["url"]
+    """Сторінка з випадковою адресою. Якщо вміст не влазить у ліміт — кілька сторінок із «→ Продовження»."""
+    chunks, current = [], []
+    for node in content:
+        if current and _size(current + [node]) > PAGE_LIMIT:
+            chunks.append(current)
+            current = []
+        current.append(node)
+    chunks.append(current or [{"tag": "p", "children": ["—"]}])
+
+    pages = [_placeholder(token) for _ in chunks]
+    for n, (page, chunk) in enumerate(zip(pages, chunks)):
+        if n + 1 < len(pages):
+            chunk = chunk + [{"tag": "p", "children": [
+                {"tag": "a", "attrs": {"href": pages[n + 1]["url"]}, "children": ["→ Продовження"]}]}]
+        part = f" ({n + 1}/{len(pages)})" if len(pages) > 1 else ""
+        _call(f"editPage/{page['path']}", {"access_token": token, "title": (title + part)[:256],
+                                            "author_name": AUTHOR, "content": chunk})
+    return pages[0]["url"]
 
 
 def publish_issue(token: str, title: str, result: dict, cfg: dict) -> str | None:
@@ -96,7 +126,7 @@ def publish_issue(token: str, title: str, result: dict, cfg: dict) -> str | None
             for r in result["rejected"]
         ]})
     try:
-        url = create_page(token, title, content or [{"tag": "p", "children": ["—"]}])
+        url = create_page(token, title, content)
         log.info("Telegraph: %s", url)
         return url
     except (TelegraphError, requests.RequestException) as exc:
