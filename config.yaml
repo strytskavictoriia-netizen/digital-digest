@@ -4,8 +4,8 @@
 #  Редагувати можна прямо на GitHub (✏️ → Commit changes).
 # ─────────────────────────────────────────────────────────────
 
-title: "Дайджест"          # назва в шапці випуску, у сповіщеннях і на сторінках Telegraph
-emoji: "🗞"
+title: "Digital Digest"    # назва в шапці випуску, у сповіщеннях і на сторінках Telegraph
+emoji: "📡"
 language: українська       # мова випуску
 
 # Як звертатися до Claude:
@@ -18,36 +18,107 @@ effort: high               # low | medium | high
 format:
   # layout: items — у пості всі новини рядками-посиланнями, кожна на свою сторінку Telegraph;
   #         issue — у пості топ новини з «Для нас» + посилання на ОДНУ повну сторінку випуску
-  layout: items
-  max_items: 12            # максимум новин у випуску (для items усе має влізти в одне повідомлення — до ~14)
-  top_count: 3             # скільки головних новин детально в пості (лише для layout: issue)
-  item_pages: true         # для layout: items — окрема сторінка Telegraph на кожну новину
-  idea_of_day: true        # блок «💡 Ідея дня»
-  tests: false             # блок «🧪 Що протестувати» — 2–4 гіпотези з випуску
-  rejected_footer: false   # на сторінці випуску — «що перевірили й відкинули і чому»
-  weekly: true             # тижневий підсумок (день і час — у .github/workflows/weekly.yml)
+  layout: issue
+  max_items: 16            # секції не обов'язкові — краще коротший випуск, ніж наповнювач
+  top_count: 3             # «Головне» — 2–3 картки з «Для нас» у пості
+  item_pages: false
+  idea_of_day: false
+  tests: true              # «🧪 Що протестувати» — 2–4 гіпотези з цього випуску
+  rejected_footer: true    # «що перевірили й відкинули і чому» на повній сторінці
+  weekly: true
 
-# Необов'язково: файл зі сталими фактами (ставки, умови, політики), який модель читає перед кожним
-# випуском — щоб не подавати відоме як новину, а зміну помічати. Напр.: reference: reference.md
-# reference: reference.md
+# Довідник сталих ставок і механіки (з посібника, розділ 12). Те, що в ньому, — не новина;
+# зміна чогось із нього — новина. Оновлювати, коли щось змінюється.
+reference: reference.md
 
 lookback_hours: 30         # за який період збирати матеріали
-avoid_repeats_days: 3      # скільки попередніх випусків показувати моделі, щоб не повторюватись
+avoid_repeats_days: 7      # антиповтор за сюжетом — дивимось тиждень назад
 
-# Про що дайджест: що включати і що відкидати.
+# Про що дайджест: що включати і що відкидати (посібник, розділи 3–6).
 topic: |
-  (опис теми)
+  Щоденний галузевий дайджест про те, куди подіти готовий відеоконтент і де на ньому заробити.
+  Цінність визначає не масштаб новини, а те, чи можна з неї щось зробити. Шукаємо механіку і цифри,
+  а не події.
 
-# Хто читає і чим займається — від цього залежать рекомендації «як використати».
+  ТРИ ФІЛЬТРИ — новина має пройти всі:
+  1. «Що конкретно digital-відділ може зробити з цим протягом 90 днів?» Прийнятні відповіді: подати
+     заявку · порахувати економіку · протестувати формат · змінити налаштування монетизації · внести
+     в план переговорів із конкретним покупцем · перепакувати тайтл · змінити ціну · не повторити
+     чужу помилку. «Нічого, просто знати» — не йде у випуск.
+  2. «Що саме змінилось або вийшло за це вікно?» Корисне, але стале — це довідка, не новина.
+  3. «Чи писали ми вже про цю історію?» Антиповтор за сюжетом. Один сюжет = максимум один раз у
+     головному; повертатись лише коли змінився наслідок для нас.
+
+  ЩО ПОЛЮВАТИ (у порядку користі): фактичні ставки й механіка виплат (RPM/CPM по нішах і
+  географіях, revenue share, пороги входу, формули); канали доходу для свого контенту (MSN,
+  відео-подкасти Spotify, FAST/AVOD, rate cards, ліцензування бібліотеки, зокрема для навчання AI);
+  фінансування з відкритим дедлайном (обов'язково: дедлайн, сума, хто може подати, посилання);
+  breakout-механіка (чому прострілило: формат, хук, структура, частота, цифри, відтворюваність);
+  формати — хто купив, на які території, на яких умовах, digital-продовження; вертикальні
+  мікродрами — unit economics; правила платформ (монетизація, AI-маркування, reuse/compilation).
+
+  ЧОРНИЙ СПИСОК — не включаємо за замовчуванням:
+  - процесуальні кроки в чужих M&A (слухання, consent decree, «очікуване закриття», призначення
+    топменеджерів) — виняток: угода закрилась і є конкретний наслідок для ринку контенту;
+  - квартальні звіти платформ (виручка, підписники, MAU) — виняток: цифра прямо змінює виплати
+    партнерам або ціну контенту;
+  - renewal і cancellation американських шоу;
+  - анонси конференцій без дедлайну подачі чи застосовної механіки;
+  - «X запустив FAST-канал» без умов угоди чи економіки;
+  - «ринок виросте до $N млрд» без unit economics;
+  - vendor- і SEO-контент як єдине джерело цифр (можна згадати з явною позначкою, не як факт).
+
+  ВАЖЛИВО: OTT-платформи (Megogo, Sweet.tv, Київстар ТБ) — це канал продажу, один із напрямків,
+  а не інфраструктура компанії. Новина про них — це ринкова розвідка про потенційного покупця,
+  а не загроза власному бізнесу.
+
+  Дату перевіряй за самим матеріалом, а не за словами «this week» у заголовку.
+
+# Хто читає і чим займається (посібник, розділи 1–2).
 audience: |
-  (опис читачів)
+  Digital-відділ української медіагрупи Starlight Media — люди, які щодня вирішують, куди подіти
+  контент і де на ньому заробити. П'ять напрямків, у порядку ваги:
+  1. TV-бібліотека — головний актив: де перепродати й переупакувати готовий контент (FAST, AVOD,
+     вертикалки, ліцензування, автодубляж).
+  2. Продакшен великих шоу: як такі формати живуть у digital по світу, які digital-extensions дають
+     гроші й аудиторію.
+  3. YouTube-напрямок, що тестує американські ніші: фактичні RPM по нішах, breakout-механіка,
+     формати з високим доходом, правила монетизації.
+  4. Продажі контенту в OTT: хто купує, які пакети в тренді, ціни за годину, умови угод.
+  5. Вертикальні мікродрами — розвідка: собівартість епізоду, моделі виплат, хто заходить і на
+     яких умовах.
+  «Для нас» — один-два речення практичного наслідку для одного з цих напрямків.
 
-# Напрями (рубрики) випуску. Порядок тут = порядок у випуску.
+# Секції випуску (посібник, розділ 9). Порожню секцію не пишемо.
 rubrics:
-  - id: main
-    emoji: "📌"
-    title: Головне
-    hint: усе важливе з теми
+  - id: money
+    emoji: "💵"
+    title: Гроші й ставки
+    hint: числа, виплати, умови — RPM/CPM по нішах і географіях, revenue share, пороги входу, формули виплат; лише з джерелом
+  - id: channels
+    emoji: "📺"
+    title: Канали доходу
+    hint: MSN і Microsoft Start, відео-подкасти Spotify, FAST-агрегатори, AVOD/SVOD rate cards, ліцензування бібліотеки (зокрема для AI), монетизація бібліотеки на YouTube
+  - id: funding
+    emoji: "🎟"
+    title: Фінансування і гранти
+    hint: лише з відкритим дедлайном — обов'язково дедлайн, сума, хто може подати, посилання; без дедлайну не включати
+  - id: breakout
+    emoji: "🚀"
+    title: "Розбір: що прострілило і чому"
+    hint: механіка, не чарт — формат, хук, структура, частота, цифри і чи це відтворювано
+  - id: formats
+    emoji: "🎭"
+    title: Формати
+    hint: хто купив який формат, на які території, за яких умов; digital-продовження великих шоу
+  - id: vertical
+    emoji: "📱"
+    title: Вертикалки
+    hint: unit economics мікродрам — вартість епізоду й сезону, ліцензії, revenue share платформ, хто заходить і на яких умовах, провали і їх причини
+  - id: rules
+    emoji: "📜"
+    title: Правила платформ
+    hint: що тепер можна й не можна монетизувати, вимоги до AI-контенту й маркування, політики reuse/compilation/inauthentic content — критично для репурпоузу бібліотеки
 
 # ─────────────────────────────────────────────────────────────
 #  Джерела. Додавати найпростіше командою:
@@ -58,3 +129,48 @@ rubrics:
 #  ⚠️ Список sources має лишатися останнім у файлі.
 # ─────────────────────────────────────────────────────────────
 sources:
+  - {name: "YouTube Official Blog", tier: "T1", type: "rss", url: "https://blog.youtube/rss"}
+  - {name: "Spotify Newsroom", tier: "T1", type: "rss", url: "https://newsroom.spotify.com/feed/", keywords: ["podcast", "creator", "partner", "video", "advertis", "monetiz"]}
+  - {name: "Meta Newsroom", tier: "T1", type: "rss", url: "https://about.fb.com/feed/", keywords: ["creator", "monetiz", "reels", "video", "payout"]}
+  - {name: "Netflix Newsroom", tier: "T1", type: "rss", url: "https://about.netflix.com/en/feed.xml", keywords: ["advertis", "ad-supported", "licens", "partner", "vertical", "creator"], limit: 5}
+  - {name: "Держкіно", tier: "T1", type: "rss", limit: 15, url: "https://news.google.com/rss/search?q=site:usfa.gov.ua+when:2d&hl=uk&gl=UA&ceid=UA:uk", keywords: ["конкурс", "грант", "фінансуванн", "пітчинг", "заявк", "державн.* підтримк"]}
+  - {name: "Tubefilter", tier: "T2", type: "rss", url: "https://www.tubefilter.com/feed/"}
+  - {name: "Variety Digital", tier: "T2", type: "rss", url: "https://variety.com/feed/rss/"}
+  - {name: "Digiday", tier: "T2", type: "rss", url: "https://digiday.com/feed/"}
+  - {name: "Social Media Today", tier: "T2", type: "rss", url: "https://www.socialmediatoday.com/feeds/news/", keywords: ["monetiz", "creator", "YouTube", "TikTok", "revenue", "payout", "video"]}
+  - {name: "Platformer", tier: "T2", type: "rss", url: "https://www.platformer.news/rss/"}
+  - {name: "Deadline", tier: "T2", type: "rss", url: "https://deadline.com/feed/rss/", keywords: ["FAST", "AVOD", "SVOD", "licens", "library", "deal", "format", "streaming", "YouTube", "vertical", "micro-?drama", "creator", "ad-supported", "rev(enue)? share"], limit: 10}
+  - {name: "THR Business", tier: "T2", type: "rss", url: "https://www.hollywoodreporter.com/feed/rss/", keywords: ["FAST", "AVOD", "SVOD", "licens", "library", "deal", "format", "streaming", "YouTube", "vertical", "micro-?drama", "creator", "ad-supported", "rev(enue)? share"], limit: 10}
+  - {name: "Cynopsis", tier: "T2", type: "rss", url: "https://www.cynopsis.com/feed/"}
+  - {name: "MediaPlayNews", tier: "T2", type: "rss", url: "https://www.mediaplaynews.com/feed/"}
+  - {name: "C21Media", tier: "T2", type: "rss", url: "https://www.c21media.net/feed/"}
+  - {name: "Realscreen", tier: "T2", type: "rss", url: "https://realscreen.com/feed/atom/"}
+  - {name: "TVREV", tier: "T2", type: "rss", url: "https://www.tvrev.com/news?format=rss"}
+  - {name: "VideoWeek", tier: "T2", type: "rss", url: "https://videoweek.com/feed/"}
+  - {name: "Advanced Television", tier: "T2", type: "rss", url: "https://www.advanced-television.com/feed/"}
+  - {name: "Rest of World", tier: "T2", type: "rss", url: "https://restofworld.org/feed/latest", keywords: ["creator", "video", "streaming", "drama", "YouTube", "TikTok", "media", "content"]}
+  - {name: "No Film School", tier: "T2", type: "rss", url: "https://nofilmschool.com/feeds/feed.rss", keywords: ["grant", "fund", "deadline", "lab", "pitch", "distribution", "streaming", "licens"], limit: 10}
+  - {name: "Passionfruit", tier: "T2", type: "rss", url: "https://passionfru.it/feed/"}
+  - {name: "Creator Handbook", tier: "T2", type: "rss", url: "https://www.creatorhandbook.net/feed/"}
+  - {name: "Real Reel", tier: "T2", type: "rss", url: "https://medium.com/feed/real-reel"}
+  - {name: "Podnews", tier: "T3", type: "rss", url: "https://podnews.net/rss"}
+  - {name: "MIDiA Research", tier: "T3", type: "rss", url: "https://www.midiaresearch.com/rss/blog.xml"}
+  - {name: "K7 Media", tier: "T3", type: "rss", url: "https://k7.media/feed"}
+  - {name: "Stratechery", tier: "T4", type: "rss", url: "https://stratechery.com/feed"}
+  - {name: "Simon Owens", tier: "T4", type: "rss", url: "https://simonowens.substack.com/feed"}
+  - {name: "Colin and Samir", tier: "T4", type: "rss", limit: 5, url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCwayCyXbToTPxYJUBcEx74g"}
+  - {name: "r/PartneredYoutube", tier: "T4", type: "rss", limit: 10, delay: 0, url: "https://www.reddit.com/r/PartneredYoutube/top/.rss?t=day"}
+  - {name: "Детектор медіа", tier: "UA", type: "rss", url: "https://detector.media/rss/", keywords: ["телеканал", "OTT", "Megogo", "Sweet", "Київстар ТБ", "YouTube", "стрімінг", "контент", "реклам", "ліценз", "грант", "продакшн", "серіал", "шоу", "медіагруп", "телебачен"]}
+  - {name: "MediaSat", tier: "UA", type: "rss", url: "https://mediasat.info/uk/feed/", keywords: ["телеканал", "OTT", "Megogo", "Sweet", "Київстар ТБ", "YouTube", "стрімінг", "контент", "реклам", "ліценз", "грант", "продакшн", "серіал", "шоу", "медіагруп", "телебачен"]}
+  - {name: "Forbes Ukraine", tier: "UA", type: "rss", limit: 10, url: "https://news.google.com/rss/search?q=site:forbes.ua+when:2d&hl=uk&gl=UA&ceid=UA:uk", keywords: ["телеканал", "OTT", "Megogo", "Sweet", "Київстар ТБ", "YouTube", "стрімінг", "контент", "реклам", "ліценз", "грант", "продакшн", "серіал", "шоу", "медіагруп", "телебачен"]}
+  - {name: "MC.today", tier: "UA", type: "rss", url: "https://mc.today/uk/feed/", keywords: ["телеканал", "OTT", "Megogo", "Sweet", "Київстар ТБ", "YouTube", "стрімінг", "контент", "реклам", "ліценз", "грант", "продакшн", "серіал", "шоу", "медіагруп", "телебачен"]}
+  - {name: "Mind.ua", tier: "UA", type: "rss", url: "https://s.mind.ua/rss/ua/all.xml", keywords: ["телеканал", "OTT", "Megogo", "Sweet", "Київстар ТБ", "YouTube", "стрімінг", "контент", "реклам", "ліценз", "грант", "продакшн", "серіал", "шоу", "медіагруп", "телебачен"]}
+  - {name: "GN: FAST-канали", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22FAST+channel%22+OR+%22FAST+channels%22+OR+%22free+ad-supported+streaming%22+when%3A2d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN: ліцензування контенту", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%28%22licensing+deal%22+OR+%22library+deal%22+OR+%22content+licensing%22%29+%28streaming+OR+series+OR+TV+OR+film%29+when%3A3d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN: монетизація YouTube", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22YouTube+Partner+Program%22+OR+%22inauthentic+content%22+OR+%22reused+content%22+OR+%22YouTube+monetization%22+when%3A3d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN: мікродрами", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22microdrama%22+OR+%22micro-drama%22+OR+%22vertical+drama%22+OR+%22ReelShort%22+OR+%22DramaBox%22+when%3A2d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN: автодубляж", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22auto+dubbing%22+OR+%22AI+dubbing%22+OR+%22multi-language+audio%22+YouTube+when%3A7d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN: гранти документалістів", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22documentary%22+fund+OR+grant+%22call+for%22+OR+%22submissions+open%22+OR+deadline+when%3A7d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN: Creative Europe MEDIA", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22Creative+Europe%22+MEDIA+call+OR+deadline+OR+funding+when%3A7d&hl=en-US&gl=US&ceid=US:en"}
+  - {name: "GN UA: OTT і ліцензування", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%28%22Megogo%22+OR+%22Sweet.tv%22+OR+%22%D0%9A%D0%B8%D1%97%D0%B2%D1%81%D1%82%D0%B0%D1%80+%D0%A2%D0%91%22%29+%28%D0%BA%D0%BE%D0%BD%D1%82%D0%B5%D0%BD%D1%82+OR+%D0%BB%D1%96%D1%86%D0%B5%D0%BD%D0%B7+OR+%D1%83%D0%B3%D0%BE%D0%B4%D0%B0+OR+%D0%BF%D1%96%D0%B4%D0%BF%D0%B8%D1%81%D0%BA+OR+%D1%80%D0%B5%D0%BA%D0%BB%D0%B0%D0%BC+OR+%D0%BA%D0%B0%D1%82%D0%B0%D0%BB%D0%BE%D0%B3%29+when%3A3d&hl=uk&gl=UA&ceid=UA:uk"}
+  - {name: "GN UA: гранти", type: "rss", limit: 12, url: "https://news.google.com/rss/search?q=%22%D0%B3%D1%80%D0%B0%D0%BD%D1%82%22+OR+%22%D0%BF%D1%80%D0%B8%D0%B9%D0%BE%D0%BC+%D0%B7%D0%B0%D1%8F%D0%B2%D0%BE%D0%BA%22+%D0%BA%D1%96%D0%BD%D0%BE+OR+%D0%BC%D0%B5%D0%B4%D1%96%D0%B0+OR+%D0%B4%D0%BE%D0%BA%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D0%B0%D0%BB%D1%8C%D0%BD%D0%B8%D0%B9+when%3A3d&hl=uk&gl=UA&ceid=UA:uk"}
