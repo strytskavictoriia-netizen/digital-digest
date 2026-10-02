@@ -120,6 +120,31 @@ def extras(cfg: dict) -> str:
     return "\n\n".join(rules)
 
 
+def verify_cfg(cfg: dict) -> dict:
+    """verify.web: true — двоетапна робота: відбір кандидатів, потім перевірка пошуком і написання."""
+    v = cfg.get("verify") or {}
+    return {"web": bool(v.get("web", False)), "max_candidates": v.get("max_candidates", 12),
+            "max_searches": v.get("max_searches", 20), "model": v.get("model")}
+
+
+def verification_rules(cfg: dict) -> str:
+    v = verify_cfg(cfg)
+    if not v["web"]:
+        return ""
+    return (
+        "## Перевірка в інтернеті — обов'язкова\n"
+        "Тобі дали кандидатів, відібраних на першому етапі, з анонсами джерел. У тебе є веб-пошук (WebSearch) і "
+        "читання сторінок (WebFetch). Для кожного кандидата, перш ніж писати:\n"
+        "1. Знайди першоджерело й дату ПЕРШОГО оголошення події. Якщо подію оголосили більше ніж за 3 дні до сьогодні "
+        "(тобто це переказ старої новини), не включай її — хіба що з'явився новий конкретний факт; тоді пиши саме про нього.\n"
+        "2. Підтверди ключові факти й цифри офіційним джерелом або другим незалежним. Не вдалося — "
+        "`verification: single_source`, і таку новину не став у головні (importance 3).\n"
+        "3. Ще раз чесно спитай: що конкретно читачі можуть із цим зробити? Немає відповіді — не включай.\n"
+        f"Бюджет: не більше {v['max_searches']} пошуків і відкриттів сторінок на весь випуск; починай із найважливіших "
+        "кандидатів. У `details` пиши лише те, що побачив у джерелах. Кандидатів, відкинутих під час перевірки, "
+        "додай у `rejected` з причиною (напр. «оголошено ще 11 серпня»).")
+
+
 def prompt(name: str, cfg: dict) -> str:
     rubrics = "\n".join(f"- `{r['id']}` — {r['emoji']} {r['title']}: {r.get('hint', '')}" for r in cfg["rubrics"])
     return (
@@ -130,7 +155,9 @@ def prompt(name: str, cfg: dict) -> str:
         .replace("{{audience}}", cfg["audience"].strip())
         .replace("{{rubrics}}", rubrics)
         .replace("{{max_items}}", str(fmt(cfg, "max_items", 12)))
+        .replace("{{max_candidates}}", str(verify_cfg(cfg)["max_candidates"]))
         .replace("{{extras}}", extras(cfg))
+        .replace("{{verification}}", verification_rules(cfg))
     )
 
 
@@ -166,6 +193,8 @@ def item_schema(cfg: dict) -> dict:
         "title": text, "summary": text, "teaser": text,
         "importance": {"type": "integer", "enum": [2, 3]},
         "details": text, "recommendations": str_array(), "source_ids": str_array(),
+        "first_published": text,
+        "verification": {"type": "string", "enum": ["confirmed", "single_source"]},
     })
 
 
@@ -225,8 +254,9 @@ def run_daily(dry_run: bool, force: bool) -> None:
     with reporting("Випуск", "daily.yml", enabled=not dry_run):
         count = make_daily(cfg, today, dry_run)
     if not dry_run:
-        hub.notify(f"✅ Випуск вийшов о {datetime.now(KYIV):%H:%M} · новин: {count}")
-        hub.ping()
+        if count:
+            hub.notify(f"✅ Випуск вийшов о {datetime.now(KYIV):%H:%M} · новин: {count}")
+        hub.ping()  # і порожній день — нормальна робота, сторож не має бити тривогу
 
 
 def make_daily(cfg: dict, today: date, dry_run: bool) -> int:
@@ -244,25 +274,56 @@ def make_daily(cfg: dict, today: date, dry_run: bool) -> int:
         if old:
             recent += [f"- {it['title']}" for it in old["items"]]
 
-    materials = "\n\n".join(
-        f"[{i.id}] {f'[{i.tier}] ' if i.tier else ''}{i.source} | {i.published:%Y-%m-%d %H:%M} UTC\n{i.title}\n{i.summary}".rstrip()
-        for i in items
-    )
-    user = (
+    def describe(group) -> str:
+        return "\n\n".join(
+            f"[{i.id}] {f'[{i.tier}] ' if i.tier else ''}{i.source} | {i.published:%Y-%m-%d %H:%M} UTC | {i.url}\n"
+            f"{i.title}\n{i.summary}".rstrip()
+            for i in group
+        )
+
+    head = (
         f"Сьогодні {render.human_date(today)}.\n\n"
         f"{reference_text(cfg)}"
         f"## Теми попередніх випусків (не повторювати той самий сюжет)\n{chr(10).join(recent) or '— немає —'}\n\n"
-        f"## Матеріали за добу ({len(items)})\n\n{materials}"
     )
     text = {"type": "string"}
-    schema = obj({
-        "items": {"type": "array", "items": item_schema(cfg)},
-        "idea": text,
-        "tests": str_array(),
-        "rejected": {"type": "array", "items": obj({"topic": text, "reason": text})},
-    })
-    result = llm.generate_json(cfg, prompt("daily", cfg), user, schema)
+    rejected_schema = {"type": "array", "items": obj({"topic": text, "reason": text})}
+    schema = obj({"items": {"type": "array", "items": item_schema(cfg)}, "idea": text,
+                  "tests": str_array(), "rejected": rejected_schema})
+    v = verify_cfg(cfg)
 
+    if not v["web"]:  # один етап: усе з анонсів
+        user = f"{head}## Матеріали за добу ({len(items)})\n\n{describe(items)}"
+        result = llm.generate_json(cfg, prompt("daily", cfg), user, schema)
+    else:
+        # Етап 1 — дешевий відбір кандидатів за анонсами
+        select_schema = obj({"candidates": {"type": "array", "items": obj({
+            "source_ids": str_array(), "rubric": {"type": "string", "enum": [r["id"] for r in cfg["rubrics"]]},
+            "claim": text, "action": text, "check": text})}, "rejected": rejected_schema})
+        picked = llm.generate_json(cfg, prompt("select", cfg),
+                                   f"{head}## Анонси за добу ({len(items)})\n\n{describe(items)}",
+                                   select_schema, effort="medium")
+        candidates = picked["candidates"][: v["max_candidates"]]
+        log.info("Етап 1: кандидатів %d, відкинуто тем %d", len(candidates), len(picked["rejected"]))
+        if not candidates:
+            return skip_day(cfg, today, dry_run, items, picked["rejected"])
+        by_key = {i.id: i for i in items}
+        blocks = []
+        for n, c in enumerate(candidates, 1):
+            group = [by_key[s] for s in c["source_ids"] if s in by_key]
+            blocks.append(f"### Кандидат {n} · {c['rubric']}\nЩо сталося (за анонсами): {c['claim']}\n"
+                          f"Що можна зробити: {c['action']}\nЩо перевірити: {c['check']}\n\n{describe(group)}")
+        user = (f"{head}## Кандидати після відбору ({len(candidates)})\n\n" + "\n\n".join(blocks) +
+                "\n\n## Уже відкинуто на першому етапі\n" +
+                "\n".join(f"- {r['topic']} — {r['reason']}" for r in picked["rejected"]))
+        # Етап 2 — перевірка в інтернеті й написання
+        result = llm.generate_json(cfg, prompt("daily", cfg), user, schema, web=True, model=v["model"])
+        if fmt(cfg, "rejected_footer", False):
+            seen_topics = {r["topic"] for r in result["rejected"]}
+            result["rejected"] += [r for r in picked["rejected"] if r["topic"] not in seen_topics]
+
+    if not result["items"]:
+        return skip_day(cfg, today, dry_run, items, result["rejected"])
     by_id = {i.id: [{"name": i.source.split(" / ")[-1], "url": i.url}] for i in items}
     for it in result["items"]:
         it["links"] = resolve_links(it.pop("source_ids"), by_id)
@@ -278,6 +339,17 @@ def make_daily(cfg: dict, today: date, dry_run: bool) -> int:
     save_daily(result, cfg, today, [normalize_url(i.url) for i in items])
     log.info("Готово: %d новин опубліковано.", len(result["items"]))
     return len(result["items"])
+
+
+def skip_day(cfg: dict, day: date, dry_run: bool, items: list, rejected: list[dict]) -> int:
+    """Вартого немає — нічого не публікуємо (краще пропустити, ніж дати наповнювач).
+    Порожній випуск записуємо в архів, щоб наглядач не вважав день пропущеним і не перезапускав."""
+    log.info("Сьогодні нічого вартого — випуск пропущено. Відкинуто: %s", "; ".join(r["topic"] for r in rejected[:8]))
+    if not dry_run:
+        save_daily({"date": day.isoformat(), "items": [], "rejected": rejected}, cfg, day,
+                   [normalize_url(i.url) for i in items])
+        hub.notify("ℹ️ Сьогодні нічого вартого — випуск пропущено. Перевірені теми не пройшли фільтри.")
+    return 0
 
 
 def save_daily(result: dict, cfg: dict, day: date, urls: list[str]) -> None:

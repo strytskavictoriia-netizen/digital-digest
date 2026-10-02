@@ -30,15 +30,20 @@ class LLMError(RuntimeError):
     pass
 
 
-def generate_json(cfg: dict, system: str, user: str, schema: dict) -> dict:
+def generate_json(cfg: dict, system: str, user: str, schema: dict,
+                  web: bool = False, model: str | None = None, effort: str | None = None) -> dict:
+    """web=True — модель може шукати й відкривати сторінки в інтернеті (WebSearch, WebFetch) для перевірки."""
+    cfg = {**cfg, "model": model or cfg.get("model"), "effort": effort or cfg.get("effort")}
     if cfg.get("backend", "subscription") == "api":
+        if web:
+            log.warning("Веб-перевірка доступна лише з backend: subscription — працюю без неї")
         return _via_api(cfg, system, user, schema)
-    return _via_subscription(cfg, system, user, schema)
+    return _via_subscription(cfg, system, user, schema, web)
 
 
 # ── Підписка: Claude Code CLI ─────────────────────────────────
 
-def _via_subscription(cfg: dict, system: str, user: str, schema: dict) -> dict:
+def _via_subscription(cfg: dict, system: str, user: str, schema: dict, web: bool = False) -> dict:
     if not os.getenv("CLAUDE_CODE_OAUTH_TOKEN"):
         raise LLMError("Не задано CLAUDE_CODE_OAUTH_TOKEN (токен з команди `claude setup-token`)")
     # Ключ API, якщо він є в оточенні, перебив би токен підписки
@@ -58,13 +63,15 @@ def _via_subscription(cfg: dict, system: str, user: str, schema: dict) -> dict:
             "--system-prompt-file", system_file,
             "--json-schema", json.dumps(schema, ensure_ascii=True, separators=(",", ":")),
             "--output-format", "json",
-            "--tools", "",  # інструменти не потрібні — це економить ~20k токенів ліміту на кожен запит
-            "--permission-mode", "dontAsk",  # модель не має виконувати жодних дій, лише відповісти
+            # без інструментів економимо ~20k токенів ліміту; для перевірки — лише пошук і читання сторінок
+            "--tools", "WebSearch,WebFetch" if web else "",
+            *(["--allowedTools", "WebSearch,WebFetch"] if web else []),
+            "--permission-mode", "dontAsk",  # усе, що не дозволено явно, автоматично заборонено
             "--strict-mcp-config",
             "--no-session-persistence",
         ]
         proc = subprocess.run(cmd, input=user, capture_output=True, text=True, encoding="utf-8",
-                              env=env, cwd=empty_dir, timeout=1200)
+                              env=env, cwd=empty_dir, timeout=2400 if web else 1200)
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -75,9 +82,9 @@ def _via_subscription(cfg: dict, system: str, user: str, schema: dict) -> dict:
                        "Якщо це ліміт підписки — запустіть пізніше кнопкою Run workflow.")
 
     usage = data.get("usage") or {}
-    log.info("Claude (підписка) %s: вхід %s токенів, вихід %s токенів, %.0f с",
+    log.info("Claude (підписка) %s: вхід %s токенів, вихід %s токенів, кроків %s, %.0f с",
              cfg.get("model"), _input_tokens(usage), usage.get("output_tokens", "?"),
-             (data.get("duration_ms") or 0) / 1000)
+             data.get("num_turns", "?"), (data.get("duration_ms") or 0) / 1000)
 
     if isinstance(data.get("structured_output"), dict):
         return data["structured_output"]

@@ -112,7 +112,8 @@ def publish_issue(token: str, title: str, result: dict, cfg: dict) -> str | None
             continue
         content.append({"tag": "h3", "children": [f"{r['emoji']} {r['title']}"]})
         for it in found:
-            content.append({"tag": "h4", "children": [("🔥 " if it.get("importance") == 3 else "") + it["title"]]})
+            warn = " ⚠️ одне джерело" if it.get("verification") == "single_source" else ""
+            content.append({"tag": "h4", "children": [("🔥 " if it.get("importance") == 3 else "") + it["title"] + warn]})
             if it.get("summary"):
                 content.append({"tag": "p", "children": [{"tag": "strong", "children": [it["summary"]]}]})
             content += item_content(it, "")[1:]  # без мітки рубрики — вона вже в заголовку секції

@@ -35,6 +35,11 @@ def visible_len(html_text: str) -> int:
     return len(unescape(re.sub(r"<[^>]+>", "", html_text)))
 
 
+def badge(it: dict) -> str:
+    """Позначка для новини, яку не вдалося підтвердити другим незалежним джерелом."""
+    return " ⚠️ одне джерело" if it.get("verification") == "single_source" else ""
+
+
 def links_html(links: list[dict]) -> str:
     return " · ".join(f'<a href="{escape(l["url"])}">{e(l["name"])}</a>' for l in links)
 
@@ -51,7 +56,7 @@ def item_line(it: dict) -> str:
     if url:
         title = f'<a href="{escape(url)}">{title}</a>'
     marker = "🔥" if it.get("importance") == 3 else "▪️"
-    return f"{marker} {title}\n{e(it['teaser'])}"
+    return f"{marker} {title}{badge(it)}\n{e(it['teaser'])}"
 
 
 def sections(items: list[dict], rubrics: list[dict]) -> list[str]:
@@ -98,7 +103,7 @@ def tail_blocks(d: dict, cfg: dict) -> list[str]:
 
 def top_card(it: dict, cfg: dict) -> str:
     emoji = {r["id"]: r["emoji"] for r in cfg["rubrics"]}.get(it["rubric"], "▪️")
-    text = f"{emoji} <b>{e(it['title'])}</b>"
+    text = f"{emoji} <b>{e(it['title'])}</b>{badge(it)}"
     if it.get("summary"):
         text += f"\n{e(it['summary'])}"
     text += f"\n💡 <b>Для нас:</b> {e(it['teaser'])}"
@@ -146,7 +151,7 @@ def daily_telegram(d: dict, cfg: dict, day: date) -> list[str]:
 def item_markdown(it: dict) -> list[str]:
     title = f"[{it['title']}]({it['page']})" if it.get("page") else it["title"]
     links = " · ".join(f"[{l['name']}]({l['url']})" for l in it["links"])
-    lines = ["", f"### {'🔥 ' if it.get('importance') == 3 else ''}{title}"]
+    lines = ["", f"### {'🔥 ' if it.get('importance') == 3 else ''}{title}{badge(it)}"]
     if it.get("summary"):
         lines += [f"**{it['summary']}**", ""]
     return lines + [f"💡 _{it['teaser']}_", "", it["details"], "", "**Як використати:**"] + \
