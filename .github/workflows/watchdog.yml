@@ -1,0 +1,38 @@
+name: Наглядач дайджесту
+
+# Перевіряє, чи вийшов сьогоднішній дайджест, і якщо ні — запускає його сам
+# (подробиці в digest/watchdog.py). Сповіщення — в бот «центр агентів».
+#
+# Розклад GitHub для цього репозиторію запізнюється на години, тому основний запуск
+# наглядача — ззовні, через cron-job.org (кнопка workflow_dispatch). Розклад нижче — запасний.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7 6 * * *"   # 09:07 Київ влітку / 08:07 взимку (пропуститься)
+    - cron: "7 7 * * *"   # запасний
+    - cron: "7 8 * * *"   # запасний
+
+permissions:
+  actions: write     # запускати й зупиняти дайджест
+  contents: read     # перевіряти архів
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Перевірити дайджест
+        run: python -m digest watchdog
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HUB_BOT_TOKEN: ${{ secrets.HUB_BOT_TOKEN }}
+          HUB_CHAT_ID: ${{ secrets.HUB_CHAT_ID }}
+          MIN_KYIV_HOUR: ${{ github.event_name == 'schedule' && '9' || '' }}

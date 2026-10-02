@@ -1,0 +1,53 @@
+name: Тижневий підсумок
+
+on:
+  schedule:
+    # П'ятниця, 15:00+ за Києвом. Три запуски — див. пояснення в daily.yml.
+    - cron: "17 12 * * 5"   # 15:17 Київ влітку / 14:17 взимку (пропуститься)
+    - cron: "17 13 * * 5"   # запасний
+    - cron: "17 14 * * 5"   # запасний
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Опублікувати повторно, навіть якщо підсумок цього тижня вже був"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: digest
+  cancel-in-progress: false
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: npm install -g @anthropic-ai/claude-code
+
+      - name: Зібрати та опублікувати тижневий підсумок
+        run: python -m digest weekly ${{ inputs.force && '--force' || '' }}
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}   # backend: subscription
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}               # backend: api
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAPH_TOKEN: ${{ secrets.TELEGRAPH_TOKEN }}
+          HUB_BOT_TOKEN: ${{ secrets.HUB_BOT_TOKEN }}
+          HUB_CHAT_ID: ${{ secrets.HUB_CHAT_ID }}
+          MIN_KYIV_HOUR: ${{ github.event_name == 'schedule' && '15' || '' }}
+
+      - name: Зберегти архів
+        run: |
+          git config user.name "ai-digest-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add archive
+          git diff --cached --quiet || (git commit -m "Тижневий підсумок $(TZ=Europe/Kyiv date +%F)" && git push)
