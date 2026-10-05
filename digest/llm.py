@@ -53,6 +53,17 @@ def _via_subscription(cfg: dict, system: str, user: str, schema: dict, web: bool
     if len(lines) > 1:
         log.warning("CLAUDE_CODE_OAUTH_TOKEN містить зайве після токена (%d додаткових фрагментів) — відкидаю. "
                     "Збережіть секрет заново: лише сам токен, без інших рядків.", len(lines) - 1)
+    # Скопійований разом із назвою змінної (CLAUDE_CODE_OAUTH_TOKEN=sk-ant-…) або в лапках
+    cleaned = re.sub(r"^[A-Za-z_]+=", "", token).strip("\"'`")
+    if cleaned != token:
+        log.warning("У значенні CLAUDE_CODE_OAUTH_TOKEN була назва змінної або лапки — прибрано. "
+                    "Збережіть секрет заново: лише сам токен.")
+        token = cleaned
+    # Діагностика без розкриття значення: довжина й публічний початок (справжній токен — ~108 символів, sk-ant-oat01-)
+    log.info("Токен підписки: %d символів, початок «%s»", len(token), token[:13])
+    if not token.startswith("sk-ant-oat01-") or not 90 <= len(token) <= 130:
+        log.warning("Токен має незвичний вигляд (очікується ~108 символів, початок «sk-ant-oat01-»): "
+                    "схоже, його скопійовано не повністю або не той.")
     # Ключ API, якщо він є в оточенні, перебив би токен підписки
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
     env["CLAUDE_CODE_OAUTH_TOKEN"] = token
