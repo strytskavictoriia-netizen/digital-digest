@@ -44,10 +44,18 @@ def generate_json(cfg: dict, system: str, user: str, schema: dict,
 # ── Підписка: Claude Code CLI ─────────────────────────────────
 
 def _via_subscription(cfg: dict, system: str, user: str, schema: dict, web: bool = False) -> dict:
-    if not os.getenv("CLAUDE_CODE_OAUTH_TOKEN"):
+    lines = (os.getenv("CLAUDE_CODE_OAUTH_TOKEN") or "").split()
+    if not lines:
         raise LLMError("Не задано CLAUDE_CODE_OAUTH_TOKEN (токен з команди `claude setup-token`)")
+    # Секрет часто вставляють із зайвим: перенос рядка, пробіл або наступний рядок із .env.
+    # Токен — це лише перше «слово», решту відкидаємо.
+    token = lines[0]
+    if len(lines) > 1:
+        log.warning("CLAUDE_CODE_OAUTH_TOKEN містить зайве після токена (%d додаткових фрагментів) — відкидаю. "
+                    "Збережіть секрет заново: лише сам токен, без інших рядків.", len(lines) - 1)
     # Ключ API, якщо він є в оточенні, перебив би токен підписки
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+    env["CLAUDE_CODE_OAUTH_TOKEN"] = token
     with tempfile.TemporaryDirectory() as empty_dir:  # порожня папка: без чужих CLAUDE.md і налаштувань
         # Інструкції — через файл, а в аргументах лише ASCII без переносів:
         # на Windows cmd.exe обрізає багаторядкові аргументи і псує кирилицю
